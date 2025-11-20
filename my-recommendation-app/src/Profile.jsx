@@ -23,7 +23,7 @@ const TRANSLATIONS = {
       certifications: "자격증",
       projects: "프로젝트",
       strengths: "강점",
-      reputations: "받은 평판",
+      reputations: "평판",
     },
     empty: {
       info: "정보가 존재하지 않습니다.",
@@ -104,6 +104,7 @@ const TRANSLATIONS = {
       userFound: "사용자를 찾았습니다",
       userNotFound: "해당 이메일의 사용자를 찾을 수 없습니다.",
       searchError: "사용자 검색 중 오류가 발생했습니다.",
+      cannotRateSelf: "자기 자신에게 평판을 작성할 수 없습니다.",
       emailRequired: "이메일을 입력해주세요.",
       userRequired: "먼저 사용자를 검색해주세요.",
       categoryRequired: "카테고리를 선택해주세요.",
@@ -262,6 +263,7 @@ const TRANSLATIONS = {
       userFound: "User found",
       userNotFound: "User with this email not found.",
       searchError: "An error occurred while searching for user.",
+      cannotRateSelf: "You cannot write a reputation for yourself.",
       emailRequired: "Please enter an email.",
       userRequired: "Please search for a user first.",
       categoryRequired: "Please select a category.",
@@ -674,6 +676,17 @@ export default function Profile({ initialSection: _initialSection, onLoaded, loa
       window.alert(t.reputation.emailRequired);
       return;
     }
+    
+    // 자기 자신인지 확인
+    const emailLower = email.trim().toLowerCase();
+    if (me?.email && me.email.toLowerCase() === emailLower) {
+      window.alert(t.reputation.cannotRateSelf);
+      if (setSearchedUserCallback) {
+        setSearchedUserCallback(null);
+      }
+      return null;
+    }
+    
     setSearchingUser(true);
     try {
       const token = localStorage.getItem("token");
@@ -690,6 +703,16 @@ export default function Profile({ initialSection: _initialSection, onLoaded, loa
       
       if (data.exists && data.users && data.users.length > 0) {
         const user = data.users.find(u => u.email === email) || data.users[0];
+        
+        // 검색된 사용자가 자기 자신인지 다시 한 번 확인 (대소문자 차이 등 고려)
+        if (me?.email && me.email.toLowerCase() === user.email.toLowerCase()) {
+          window.alert(t.reputation.cannotRateSelf);
+          if (setSearchedUserCallback) {
+            setSearchedUserCallback(null);
+          }
+          return null;
+        }
+        
         if (setSearchedUserCallback) {
           setSearchedUserCallback(user);
         }
@@ -711,7 +734,7 @@ export default function Profile({ initialSection: _initialSection, onLoaded, loa
     } finally {
       setSearchingUser(false);
     }
-  }, [t]);
+  }, [t, me]);
 
   const loadAll = async (userInfo = null) => {
     const user = userInfo || me; // 파라미터로 받거나 state에서 가져오기
@@ -1408,7 +1431,7 @@ export default function Profile({ initialSection: _initialSection, onLoaded, loa
                     style={{
                       padding: "4px 12px",
                       borderRadius: 12,
-                      background: "#fee2e2",
+                      background: "#e9d5ff",
                       color: "#7c3aed",
                       fontSize: "0.75rem",
                       fontWeight: 600,
