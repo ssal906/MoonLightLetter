@@ -1,7 +1,20 @@
 // SignUp.jsx
 import React, { useMemo, useState, useEffect } from "react";
 
-const API_BASE = (import.meta?.env?.VITE_API_BASE ?? "http://localhost:8000").replace(/\/+$/, "");
+// API Base URL 설정 (다른 파일들과 동일한 로직)
+const getApiBase = () => {
+  const envApiBase = import.meta?.env?.VITE_API_BASE;
+  if (envApiBase) return envApiBase.replace(/\/+$/, "");
+  const isProduction = typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+  if (isProduction) {
+    console.error("⚠️ VITE_API_BASE 환경 변수가 설정되지 않았습니다!");
+    console.error("프로덕션 환경에서는 반드시 VITE_API_BASE를 설정해야 합니다.");
+    // 프로덕션에서는 빈 문자열 반환하여 명확한 에러 발생
+    return "";
+  }
+  return "http://localhost:8000";
+};
+const API_BASE = getApiBase();
 
 // 다국어 지원
 const TRANSLATIONS = {
@@ -420,24 +433,52 @@ function Field({ label, children, hint }) {
 
 function useApi() {
   const get = async (path) => {
+    const fullUrl = `${API_BASE}${path}`;
+    console.log(`🌐 API 요청: ${fullUrl}`);
+    
     try {
-      const r = await fetch(`${API_BASE}${path}`);
+      const r = await fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // CORS 문제 진단을 위한 옵션
+        mode: 'cors',
+        credentials: 'omit',
+      });
+      
+      console.log(`📡 응답 상태: ${r.status} ${r.statusText}`);
+      console.log(`📡 응답 헤더:`, Object.fromEntries(r.headers.entries()));
+      
       let data;
       try {
         data = await r.json();
       } catch (jsonError) {
         // JSON 파싱 실패 시 텍스트로 시도
         const text = await r.text();
+        console.error(`❌ JSON 파싱 실패:`, text);
         throw new Error(`서버 응답 오류 (${r.status}): ${text || r.statusText}`);
       }
+      
       if (!r.ok) {
+        console.error(`❌ HTTP 오류:`, data);
         throw new Error(data.detail || data.message || `HTTP ${r.status}: ${r.statusText}`);
       }
+      
+      console.log(`✅ 응답 성공:`, data);
       return data;
     } catch (error) {
+      console.error(`❌ 요청 실패:`, {
+        error: error.message,
+        name: error.name,
+        stack: error.stack,
+        url: fullUrl,
+        API_BASE
+      });
+      
       // 네트워크 오류나 기타 오류 처리
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error(`서버에 연결할 수 없습니다. API 주소를 확인해주세요: ${API_BASE}`);
+      if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('Failed to fetch'))) {
+        throw new Error(`서버에 연결할 수 없습니다. API 주소를 확인해주세요: ${API_BASE || '(설정되지 않음)'}\n\n가능한 원인:\n1. CORS 문제\n2. 서버가 실행 중이지 않음\n3. 네트워크 연결 문제`);
       }
       throw error;
     }
