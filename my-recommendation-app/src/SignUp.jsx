@@ -419,21 +419,54 @@ function Field({ label, children, hint }) {
 }
 
 function useApi() {
-  const get = (path) =>
-    fetch(`${API_BASE}${path}`).then(async (r) => {
-      if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
-      return r.json();
-    });
-  const post = (path, body) =>
-    fetch(`${API_BASE}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then(async (r) => {
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || r.statusText);
+  const get = async (path) => {
+    try {
+      const r = await fetch(`${API_BASE}${path}`);
+      let data;
+      try {
+        data = await r.json();
+      } catch (jsonError) {
+        // JSON 파싱 실패 시 텍스트로 시도
+        const text = await r.text();
+        throw new Error(`서버 응답 오류 (${r.status}): ${text || r.statusText}`);
+      }
+      if (!r.ok) {
+        throw new Error(data.detail || data.message || `HTTP ${r.status}: ${r.statusText}`);
+      }
       return data;
-    });
+    } catch (error) {
+      // 네트워크 오류나 기타 오류 처리
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error(`서버에 연결할 수 없습니다. API 주소를 확인해주세요: ${API_BASE}`);
+      }
+      throw error;
+    }
+  };
+  const post = async (path, body) => {
+    try {
+      const r = await fetch(`${API_BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      let data;
+      try {
+        data = await r.json();
+      } catch (jsonError) {
+        const text = await r.text();
+        throw new Error(`서버 응답 오류 (${r.status}): ${text || r.statusText}`);
+      }
+      if (!r.ok) {
+        throw new Error(data.detail || data.message || `HTTP ${r.status}: ${r.statusText}`);
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error(`서버에 연결할 수 없습니다. API 주소를 확인해주세요: ${API_BASE}`);
+      }
+      throw error;
+    }
+  };
   return { get, post };
 }
 
@@ -697,11 +730,27 @@ export default function SignUp({ language: propLanguage, onLanguageChange: propO
     }
     setEmailFormatError(""); // 형식이 올바르면 오류 메시지 제거
     try {
-      const r = await get(`/auth/email-available?email=${encodeURIComponent(email)}`);
+      const url = `/auth/email-available?email=${encodeURIComponent(email)}`;
+      console.log("🔍 이메일 중복 확인 요청:", {
+        API_BASE,
+        fullUrl: `${API_BASE}${url}`,
+        email
+      });
+      const r = await get(url);
+      console.log("✅ 이메일 중복 확인 응답:", r);
       setEmailChecked(r.available);
     } catch (error) {
-      console.error("이메일 중복 확인 오류:", error);
-      alert(t.step1.emailCheckError);
+      console.error("❌ 이메일 중복 확인 오류:", error);
+      console.error("오류 상세:", {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        API_BASE,
+        email
+      });
+      // 실제 오류 메시지를 표시
+      const errorMessage = error.message || t.step1.emailCheckError;
+      alert(`${t.step1.emailCheckError}\n\n오류 내용: ${errorMessage}\n\nAPI 주소: ${API_BASE || '(설정되지 않음)'}`);
       setEmailChecked(null);
     }
   };
