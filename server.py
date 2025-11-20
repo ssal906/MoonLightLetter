@@ -3223,16 +3223,34 @@ async def grant_detail_permission(payload: GrantPermissionRequest, current_user:
         if existing:
             raise HTTPException(status_code=409, detail="이미 권한이 부여되어 있습니다.")
         
-        # 권한 부여
-        conn.execute(text("""
-            INSERT INTO userDetailPermissions (userId, ownerEmail, allowedEmail, note, createdAt, updatedAt)
-            VALUES (:uid, :owner_email, :email, :note, NOW(), NOW())
-        """), {
-            "uid": user_id,
-            "owner_email": owner_email,
-            "email": payload.allowed_email,
-            "note": payload.note
-        })
+        # 삭제된 레코드가 있는지 확인 (유니크 제약조건 때문에 삭제된 레코드가 있으면 UPDATE로 복구)
+        deleted = conn.execute(text("""
+            SELECT id FROM userDetailPermissions 
+            WHERE ownerEmail = :owner_email AND allowedEmail = :email AND deletedAt IS NOT NULL
+        """), {"owner_email": owner_email, "email": payload.allowed_email}).first()
+        
+        if deleted:
+            # 삭제된 레코드를 복구 (soft delete undo)
+            conn.execute(text("""
+                UPDATE userDetailPermissions 
+                SET userId = :uid, note = :note, deletedAt = NULL, updatedAt = NOW()
+                WHERE id = :id
+            """), {
+                "uid": user_id,
+                "note": payload.note,
+                "id": deleted._mapping.get("id")
+            })
+        else:
+            # 새 권한 부여
+            conn.execute(text("""
+                INSERT INTO userDetailPermissions (userId, ownerEmail, allowedEmail, note, createdAt, updatedAt)
+                VALUES (:uid, :owner_email, :email, :note, NOW(), NOW())
+            """), {
+                "uid": user_id,
+                "owner_email": owner_email,
+                "email": payload.allowed_email,
+                "note": payload.note
+            })
     
     return {"message": f"{payload.allowed_email}에게 상세정보 조회 권한을 부여했습니다.", "success": True}
 
