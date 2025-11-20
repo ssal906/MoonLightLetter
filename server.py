@@ -134,6 +134,9 @@ if not os.path.exists(STATIC_DIR):
     os.makedirs(STATIC_DIR)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+# 프론트엔드 빌드 결과물 서빙 (모든 API 라우트 정의 후 마지막에 추가)
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "static", "frontend")
+
 # 음성 파일 임시 저장 디렉토리
 AUDIO_TEMP_DIR = os.path.join(STATIC_DIR, "audio", "temp")
 if not os.path.exists(AUDIO_TEMP_DIR):
@@ -4145,6 +4148,22 @@ async def evaluate_recommendation(request: EvaluationRequest):
         import traceback
         print(f"스택 트레이스:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"추천서 평가 실패: {str(e)}")
+
+# 프론트엔드 서빙 (모든 API 라우트 정의 후 마지막에 추가)
+if os.path.exists(FRONTEND_DIR):
+    # 프론트엔드 assets 서빙
+    assets_dir = os.path.join(FRONTEND_DIR, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="frontend-assets")
+    
+    # SPA 라우팅을 위한 catch-all (모든 API 경로 제외)
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        # API 경로는 이미 위에서 처리되므로 여기서는 프론트엔드만 서빙
+        index_path = os.path.join(FRONTEND_DIR, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        raise HTTPException(status_code=404, detail="Frontend not found")
 
 if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
