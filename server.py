@@ -2190,10 +2190,23 @@ async def check_email_available(email: str = Query(..., min_length=3)):
     3. 이메일 중복 확인
     - 존재하면 available=false
     """
-    with engine.connect() as conn:
-        row = conn.execute(text("SELECT id FROM users WHERE email = :email AND deletedAt IS NULL"),
-                           {"email": email}).first()
-        return {"available": False if row else True}
+    print(f"🔍 [email-available] 요청 받음: email={email}")
+    try:
+        # 데이터베이스 연결 확인
+        print(f"📊 [email-available] 데이터베이스 연결 시도: {DATABASE_URL[:50]}...")
+        with engine.connect() as conn:
+            print(f"✅ [email-available] 데이터베이스 연결 성공")
+            row = conn.execute(text("SELECT id FROM users WHERE email = :email AND deletedAt IS NULL"),
+                               {"email": email}).first()
+            result = {"available": False if row else True}
+            print(f"✅ [email-available] 결과: {result}")
+            return result
+    except Exception as e:
+        error_msg = f"이메일 중복 확인 중 오류 발생: {str(e)}"
+        print(f"❌ [email-available] {error_msg}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=error_msg)
 
 class CompanySearchResponse(BaseModel):
     exists: bool
