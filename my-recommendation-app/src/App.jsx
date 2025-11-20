@@ -410,10 +410,14 @@ function LoginForm({ onLogin, onToggleMode, language, onLanguageChange, darkMode
     setLoading(true);
     try {
       const data = await apiPost("/login", form);
-      if (!response.ok) throw new Error(data.detail || "로그인 실패");
+      // apiPost는 성공 시 데이터를 반환하고, 실패 시 예외를 던집니다
+      // 토큰 저장
+      if (data.access_token) {
+        localStorage.setItem("token", data.access_token);
+      }
       onLogin(data);
     } catch (error) {
-      alert(error.message);
+      alert(error.message || "로그인에 실패했습니다.");
     } finally {
       setLoading(false);
     }
