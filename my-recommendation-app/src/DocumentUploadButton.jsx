@@ -100,7 +100,7 @@ export default function DocumentUploadButton({ onFieldsReceived, language = 'ko'
           padding: '10px 20px',
           background: processing 
             ? '#ccc' 
-            : 'linear-gradient(135deg, #9370DB 0%, #6A5ACD 50%, #FFD700 100%)',
+            : '#9370DB',
           color: 'white',
           border: processing ? 'none' : '1px solid #9370DB',
           borderRadius: '10px',
@@ -119,14 +119,14 @@ export default function DocumentUploadButton({ onFieldsReceived, language = 'ko'
         }}
         onMouseEnter={(e) => {
           if (!processing) {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #FFD700 0%, #9370DB 100%)';
+            e.currentTarget.style.background = '#6A5ACD';
             e.currentTarget.style.transform = 'translateY(-2px)';
             e.currentTarget.style.boxShadow = '0 6px 16px rgba(147, 112, 219, 0.5)';
           }
         }}
         onMouseLeave={(e) => {
           if (!processing) {
-            e.currentTarget.style.background = 'linear-gradient(135deg, #9370DB 0%, #6A5ACD 50%, #FFD700 100%)';
+            e.currentTarget.style.background = '#9370DB';
             e.currentTarget.style.transform = 'translateY(0)';
             e.currentTarget.style.boxShadow = '0 4px 12px rgba(147, 112, 219, 0.4)';
           }
