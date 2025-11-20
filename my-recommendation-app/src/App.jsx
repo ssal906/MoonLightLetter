@@ -1712,7 +1712,7 @@ export default function App() {
         strengths: form.strengths,
         memorable: form.memorable,
         additional_info: form.additional_info || null,
-        tone: form.tone,
+        tone: form.tone || null,
         selected_score: form.selected_score,
         workspace_id: form.workspace_id || null,
         include_user_details: form.include_user_details || false,
@@ -1782,7 +1782,7 @@ export default function App() {
       const data = await apiPost("/refine-recommendation", {
         current_content: editedRecommendation,
         improvement_notes: notes,
-        tone: form.tone,
+        tone: form.tone || null,
         selected_score: form.selected_score,
       });
       
@@ -2160,7 +2160,7 @@ export default function App() {
     form.requester_email.trim() &&
     form.relationship.trim() &&
     form.strengths.trim() &&
-    form.tone.trim() &&
+    (form.tone?.trim() || writingStyleAnalysis) && // tone이 있거나 문체가 업로드되어 있으면 통과
     form.selected_score.trim();
 
   // -----------------------------
@@ -3131,12 +3131,13 @@ export default function App() {
             >
               <div>
                 <label style={{ display: "block", fontSize: "0.875rem", fontWeight: "600", marginBottom: "8px" }}>
-                  {t.form.tone} *
+                  {t.form.tone} {!writingStyleAnalysis && "*"}
                 </label>
                 <select
-                  style={{ ...styles.input, cursor: "pointer" }}
+                  style={{ ...styles.input, cursor: writingStyleAnalysis ? "not-allowed" : "pointer", opacity: writingStyleAnalysis ? 0.6 : 1 }}
                   value={form.tone}
                   onChange={(e) => setForm({ ...form, tone: e.target.value })}
+                  disabled={!!writingStyleAnalysis}
                 >
                   {Object.entries(t.tones).map(([key, label]) => (
                     <option key={key} value={key}>
@@ -3144,6 +3145,11 @@ export default function App() {
                     </option>
                   ))}
                 </select>
+                {writingStyleAnalysis && (
+                  <p style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "4px" }}>
+                    문체가 업로드되어 톤 선택이 비활성화되었습니다. 업로드된 문체에 맞게 작성됩니다.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -3246,6 +3252,8 @@ export default function App() {
                     if (response.ok) {
                       const data = await response.json();
                       setWritingStyleAnalysis(data.style_analysis);
+                      // 문체 업로드 시 톤을 null로 설정
+                      setForm({ ...form, tone: null });
                     } else {
                       const error = await response.json();
                       alert(`❌ 오류: ${error.detail}`);
@@ -3280,7 +3288,11 @@ export default function App() {
                       ✅ 문체 분석 완료
                     </h4>
                     <button
-                      onClick={() => setWritingStyleAnalysis(null)}
+                      onClick={() => {
+                        setWritingStyleAnalysis(null);
+                        // 문체 분석 제거 시 톤을 기본값으로 복원
+                        setForm({ ...form, tone: "Formal" });
+                      }}
                       style={{
                         background: "rgba(255,255,255,0.2)",
                         border: "none",
@@ -3601,7 +3613,7 @@ export default function App() {
                   }}
                 >
                   <h3 style={{ fontSize: "1.25rem", fontWeight: "bold", color: "#9370DB" }}>
-                    {t.form.generatedTitle} ({form.selected_score}{language === 'ko' ? '점' : ''} · {t.tones[form.tone]})
+                    {t.form.generatedTitle} ({form.selected_score}{language === 'ko' ? '점' : ''}{form.tone ? ` · ${t.tones[form.tone]}` : writingStyleAnalysis ? ' · 문체 반영' : ''})
                   </h3>
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                     <button
