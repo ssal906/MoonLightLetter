@@ -2470,6 +2470,9 @@ async def signup_profile(payload: SignupProfileRequest):
         # 경력
         if payload.experiences:
             for e in payload.experiences:
+                # 빈 문자열을 None으로 변환 (MySQL 날짜 필드 오류 방지)
+                start_date = e.startDate if e.startDate and e.startDate.strip() else None
+                end_date = e.endDate if e.endDate and e.endDate.strip() else None
                 conn.execute(text("""
                     INSERT INTO userExperiences
                       (userId, company, position, startDate, endDate, description, createdAt, updatedAt)
@@ -2478,13 +2481,15 @@ async def signup_profile(payload: SignupProfileRequest):
                 """), {
                     "uid": payload.userId,
                     "company": e.company, "position": e.position,
-                    "startDate": e.startDate, "endDate": e.endDate,
+                    "startDate": start_date, "endDate": end_date,
                     "description": e.description
                 })
 
         # 수상
         if payload.awards:
             for a in payload.awards:
+                # 빈 문자열을 None으로 변환 (MySQL 날짜 필드 오류 방지)
+                award_date = a.awardDate if a.awardDate and a.awardDate.strip() else None
                 conn.execute(text("""
                     INSERT INTO userAwards
                       (userId, title, organization, awardDate, description, createdAt, updatedAt)
@@ -2493,12 +2498,17 @@ async def signup_profile(payload: SignupProfileRequest):
                 """), {
                     "uid": payload.userId,
                     "title": a.title, "organization": a.organization,
-                    "awardDate": a.awardDate, "description": a.description
+                    "awardDate": award_date, "description": a.description
                 })
 
         # 자격증
         if payload.certifications:
             for c in payload.certifications:
+                # 빈 문자열을 None으로 변환 (MySQL 날짜 필드 오류 방지)
+                issue_date = c.issueDate if c.issueDate and c.issueDate.strip() else None
+                expiry_date = c.expiryDate if c.expiryDate and c.expiryDate.strip() else None
+                issuer = c.issuer if c.issuer and c.issuer.strip() else None
+                cert_number = c.certificationNumber if c.certificationNumber and c.certificationNumber.strip() else None
                 conn.execute(text("""
                     INSERT INTO userCertifications
                       (userId, name, issuer, issueDate, expiryDate, certificationNumber, createdAt, updatedAt)
@@ -2506,14 +2516,17 @@ async def signup_profile(payload: SignupProfileRequest):
                       (:uid, :name, :issuer, :issueDate, :expiryDate, :num, NOW(), NOW())
                 """), {
                     "uid": payload.userId,
-                    "name": c.name, "issuer": c.issuer,
-                    "issueDate": c.issueDate, "expiryDate": c.expiryDate,
-                    "num": c.certificationNumber
+                    "name": c.name, "issuer": issuer,
+                    "issueDate": issue_date, "expiryDate": expiry_date,
+                    "num": cert_number
                 })
 
         # 프로젝트
         if payload.projects:
             for p in payload.projects:
+                # 빈 문자열을 None으로 변환 (MySQL 날짜 필드 오류 방지)
+                start_date = p.startDate if p.startDate and p.startDate.strip() else None
+                end_date = p.endDate if p.endDate and p.endDate.strip() else None
                 conn.execute(text("""
                     INSERT INTO userProjects
                       (userId, title, role, startDate, endDate, description, technologies, achievement, url, createdAt, updatedAt)
@@ -2522,7 +2535,7 @@ async def signup_profile(payload: SignupProfileRequest):
                 """), {
                     "uid": payload.userId,
                     "title": p.title, "role": p.role,
-                    "startDate": p.startDate, "endDate": p.endDate,
+                    "startDate": start_date, "endDate": end_date,
                     "description": p.description, "technologies": p.technologies,
                     "achievement": p.achievement, "url": p.url
                 })
