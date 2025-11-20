@@ -2400,15 +2400,15 @@ export default function App() {
                         style={{
                           padding: "1.5rem",
                           borderRadius: "12px",
-                          background: "#faf5ff",
-                          border: "2px solid #e9d5ff",
+                          background: "#6A5ACD",
+                          border: "2px solid #9370DB",
                         }}
                       >
                         <h3 style={{ 
                           fontSize: "1.125rem", 
                           fontWeight: "bold", 
                           marginBottom: "1rem",
-                          color: "#6b7280"
+                          color: "white"
                         }}>
                           검색 결과
                         </h3>
@@ -2426,9 +2426,9 @@ export default function App() {
                               }}
                               style={{
                                 padding: "12px 16px",
-                                background: "white",
+                                background: "#faf5ff",
                                 borderRadius: "8px",
-                                border: selectedUser?.id === c.id ? "2px solid #9370DB" : "1px solid #e5e7eb",
+                                border: selectedUser?.id === c.id ? "2px solid #9370DB" : "1px solid #e9d5ff",
                                 display: "flex",
                                 alignItems: "center",
                                 gap: "12px",
@@ -2474,15 +2474,15 @@ export default function App() {
                         marginTop: "1.5rem",
                         padding: "1.5rem",
                         borderRadius: "12px",
-                        background: "#faf5ff",
-                        border: "2px solid #e9d5ff",
+                        background: "#6A5ACD",
+                        border: "2px solid #9370DB",
                       }}
                     >
                       <h3 style={{ 
                         fontSize: "1.125rem", 
                         fontWeight: "bold", 
                         marginBottom: "1rem",
-                        color: "#6b7280"
+                        color: "white"
                       }}>
                         🏢 소속 회사
                       </h3>
@@ -2492,9 +2492,9 @@ export default function App() {
                             key={i}
                             style={{
                               padding: "12px 16px",
-                              background: "white",
+                              background: "#faf5ff",
                               borderRadius: "8px",
-                              border: "1px solid #e5e7eb",
+                              border: "1px solid #e9d5ff",
                               display: "flex",
                               alignItems: "center",
                               gap: "12px",
