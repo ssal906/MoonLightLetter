@@ -409,14 +409,22 @@ function LoginForm({ onLogin, onToggleMode, language, onLanguageChange, darkMode
     e.preventDefault();
     setLoading(true);
     try {
+      console.log("🔐 로그인 시도:", form.email);
       const data = await apiPost("/login", form);
+      console.log("✅ 로그인 성공:", data);
       // apiPost는 성공 시 데이터를 반환하고, 실패 시 예외를 던집니다
       // 토큰 저장
-      if (data.access_token) {
+      if (data && data.access_token) {
         localStorage.setItem("token", data.access_token);
+        console.log("💾 토큰 저장 완료");
       }
-      onLogin(data);
+      if (data && data.user) {
+        onLogin(data);
+      } else {
+        throw new Error("로그인 응답 형식이 올바르지 않습니다.");
+      }
     } catch (error) {
+      console.error("❌ 로그인 오류:", error);
       alert(error.message || "로그인에 실패했습니다.");
     } finally {
       setLoading(false);
