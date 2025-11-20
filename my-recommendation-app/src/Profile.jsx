@@ -32,7 +32,7 @@ const TRANSLATIONS = {
       certifications: "자격증 정보가 존재하지 않습니다.",
       projects: "프로젝트 정보가 존재하지 않습니다.",
       strengths: "강점 정보가 존재하지 않습니다.",
-      reputations: "평판 정보가 존재하지 않습니다.",
+      reputations: "받은 평판 정보가 존재하지 않습니다.",
     },
     buttons: {
       add: "추가",
