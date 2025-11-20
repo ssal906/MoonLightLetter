@@ -32,24 +32,45 @@ export const getAuthHeader = () => {
 
 // 기본 fetch 래퍼
 export const apiFetch = async (endpoint, options = {}) => {
-  const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${endpoint}`;
-  const headers = {
-    "Content-Type": "application/json",
-    ...getAuthHeader(),
-    ...options.headers,
-  };
+  try {
+    const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${endpoint}`;
+    const headers = {
+      "Content-Type": "application/json",
+      ...getAuthHeader(),
+      ...options.headers,
+    };
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+    console.log(`🌐 API 요청: ${url}`, { method: options.method || "GET", headers });
+    
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || `HTTP ${response.status}`);
+    console.log(`📡 응답 상태: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      let error;
+      try {
+        error = await response.json();
+      } catch (e) {
+        error = { detail: response.statusText || "Unknown error" };
+      }
+      console.error(`❌ API 오류:`, error);
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ API 성공:`, data);
+    return data;
+  } catch (error) {
+    console.error(`❌ apiFetch 오류:`, error);
+    // 네트워크 오류인 경우
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`서버에 연결할 수 없습니다. API 주소: ${API_BASE || '(설정되지 않음)'}`);
+    }
+    throw error;
   }
-
-  return response.json();
 };
 
 // HTTP 메서드별 헬퍼
