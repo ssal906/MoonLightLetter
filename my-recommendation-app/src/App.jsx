@@ -7,7 +7,7 @@ import VoiceInputButton from "./VoiceInputButton.jsx"; // 🎤 음성 입력
 import DocumentUploadButton from "./DocumentUploadButton.jsx"; // 📄 문서 업로드
 import LandingPage from "./LandingPage.jsx"; // 🏠 랜딩 페이지
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
-import { apiPost, apiGet, apiFetch, getAuthHeader } from "./api.js";
+import { apiPost, apiGet, apiFetch, getAuthHeader, getApiBase, buildApiUrl } from "./api.js";
 
 // -----------------------------
 // 스타일 객체 (다크모드 지원)
@@ -1888,8 +1888,9 @@ export default function App() {
     setDownloadingPdf(true);
     try {
       // PDF는 blob이므로 직접 fetch 사용
-      const API_BASE = import.meta?.env?.VITE_API_BASE || (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1" ? "" : "http://localhost:8000");
-      const response = await fetch(`${API_BASE}/download-pdf/${currentRecommendationId}`, {
+      const url = buildApiUrl(`/download-pdf/${currentRecommendationId}`);
+      console.log('📤 PDF 다운로드 요청:', url);
+      const response = await fetch(url, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
@@ -1947,8 +1948,9 @@ export default function App() {
       const startTime = Date.now();
       
       // TTS는 blob 응답이므로 직접 fetch 사용
-      const API_BASE = import.meta?.env?.VITE_API_BASE || (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1" ? "" : "http://localhost:8000");
-      const response = await fetch(`${API_BASE}/read-recommendation`, {
+      const url = buildApiUrl('/read-recommendation');
+      console.log('📤 TTS 요청:', url);
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -3268,8 +3270,9 @@ export default function App() {
                   setAnalyzingWritingStyle(true);
                   try {
                     // FormData는 직접 fetch 사용
-                    const API_BASE = import.meta?.env?.VITE_API_BASE || (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1" ? "" : "http://localhost:8000");
-                    const response = await fetch(`${API_BASE}/upload-writing-sample`, {
+                    const url = buildApiUrl('/upload-writing-sample');
+                    console.log('📤 문체 분석 요청:', url);
+                    const response = await fetch(url, {
                       method: 'POST',
                       headers: {
                         'Authorization': `Bearer ${token}`
