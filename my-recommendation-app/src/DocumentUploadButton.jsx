@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { getApiBase } from './api';
 
 const TRANSLATIONS = {
   ko: {
@@ -43,16 +44,33 @@ export default function DocumentUploadButton({ onFieldsReceived, language = 'ko'
       const formData = new FormData();
       formData.append('file', file);
 
-      // FormData는 직접 fetch 사용
-      const API_BASE = import.meta?.env?.VITE_API_BASE || (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1" ? "" : "http://localhost:8000");
-      const response = await fetch(`${API_BASE}/parse-document`, {
+      // FormData는 직접 fetch 사용 (Content-Type 헤더를 자동으로 설정하기 위해)
+      const API_BASE = getApiBase();
+      const url = `${API_BASE}/parse-document`;
+      console.log('📤 문서 업로드 요청:', url);
+      
+      const response = await fetch(url, {
         method: 'POST',
         body: formData
+        // FormData를 사용할 때는 Content-Type 헤더를 설정하지 않아야 브라우저가 자동으로 multipart/form-data를 설정합니다
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || t.errorProcess);
+        let errorMessage = t.errorProcess;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || t.errorProcess;
+        } catch (e) {
+          // JSON 파싱 실패 시 상태 텍스트 사용
+          errorMessage = response.statusText || `HTTP ${response.status}`;
+        }
+        console.error('❌ 문서 업로드 실패:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: url,
+          errorMessage: errorMessage
+        });
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
