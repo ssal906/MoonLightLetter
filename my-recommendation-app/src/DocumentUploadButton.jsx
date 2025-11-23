@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { getApiBase } from './api';
+import { buildApiUrl } from './api';
 
 const TRANSLATIONS = {
   ko: {
@@ -45,8 +45,7 @@ export default function DocumentUploadButton({ onFieldsReceived, language = 'ko'
       formData.append('file', file);
 
       // FormData는 직접 fetch 사용 (Content-Type 헤더를 자동으로 설정하기 위해)
-      const API_BASE = getApiBase();
-      const url = `${API_BASE}/parse-document`;
+      const url = buildApiUrl('/parse-document');
       console.log('📤 문서 업로드 요청:', url);
       
       const response = await fetch(url, {
