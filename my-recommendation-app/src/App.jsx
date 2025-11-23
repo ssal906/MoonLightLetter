@@ -243,6 +243,8 @@ const TRANSLATIONS = {
       voiceInput: "🎤 음성 입력",
       voiceProcessing: "처리 중...",
       voiceRecording: "⏹️ 녹음 중지",
+      analyzingWritingStyle: "문체 분석 중...",
+      writingStyleComplete: "✅ 문체 분석 완료",
     },
   },
   en: {
@@ -375,6 +377,8 @@ const TRANSLATIONS = {
       voiceInput: "🎤 Voice Input",
       voiceProcessing: "Processing...",
       voiceRecording: "⏹️ Stop Recording",
+      analyzingWritingStyle: "Analyzing writing style...",
+      writingStyleComplete: "✅ Writing style analysis complete",
     },
   },
 };
@@ -1193,6 +1197,7 @@ export default function App() {
   const [signatureType, setSignatureType] = useState(null);
   const [showSignaturePad, setShowSignaturePad] = useState(false);
   const [writingStyleAnalysis, setWritingStyleAnalysis] = useState(null);
+  const [analyzingWritingStyle, setAnalyzingWritingStyle] = useState(false);
   const [language, setLanguage] = useState(() => {
     return localStorage.getItem('language') || 'ko';
   });
@@ -1720,6 +1725,7 @@ export default function App() {
         template_id: form.template_id ? parseInt(form.template_id) : null,
         signature_data: signatureData || null,
         signature_type: signatureType || null,
+        use_writing_style: !!writingStyleAnalysis,  // 문체 분석이 있을 때만 문체 사용
       });
       setRecommendation(data.recommendation);
       setEditedRecommendation(data.recommendation);
@@ -2154,6 +2160,27 @@ export default function App() {
     return result;
   };
 
+  // 점수를 텍스트로 변환하는 함수
+  const getScoreText = (score, lang) => {
+    const scoreMap = {
+      ko: {
+        "5": "최우선 추천",
+        "4": "강력히 추천",
+        "3": "추천함",
+        "2": "약하게 추천",
+        "1": "매우 약하게 추천"
+      },
+      en: {
+        "5": "Highest Priority",
+        "4": "Strongly Recommend",
+        "3": "Recommend",
+        "2": "Weakly Recommend",
+        "1": "Very Weakly Recommend"
+      }
+    };
+    return scoreMap[lang]?.[score] || score;
+  };
+
   const canGenerate =
     (form.recommender_name.trim() || user?.nickname || user?.name) &&
     form.requester_name.trim() &&
@@ -2400,15 +2427,15 @@ export default function App() {
                         style={{
                           padding: "1.5rem",
                           borderRadius: "12px",
-                          background: "#6A5ACD",
-                          border: "2px solid #9370DB",
+                          background: "#e9d5ff",
+                          border: "2px solid #d8b4fe",
                         }}
                       >
                         <h3 style={{ 
                           fontSize: "1.125rem", 
                           fontWeight: "bold", 
                           marginBottom: "1rem",
-                          color: "white"
+                          color: "#6b7280"
                         }}>
                           검색 결과
                         </h3>
@@ -2474,15 +2501,15 @@ export default function App() {
                         marginTop: "1.5rem",
                         padding: "1.5rem",
                         borderRadius: "12px",
-                        background: "#6A5ACD",
-                        border: "2px solid #9370DB",
+                        background: "#e9d5ff",
+                        border: "2px solid #d8b4fe",
                       }}
                     >
                       <h3 style={{ 
                         fontSize: "1.125rem", 
                         fontWeight: "bold", 
                         marginBottom: "1rem",
-                        color: "white"
+                        color: "#6b7280"
                       }}>
                         🏢 소속 회사
                       </h3>
@@ -2800,12 +2827,12 @@ export default function App() {
                                 fontSize: "0.875rem",
                                 marginBottom: "0.5rem",
                                 padding: "8px",
-                                background: "#fee2e2",
+                                background: "#e9d5ff",
                                 borderRadius: "6px",
                               }}
                             >
-                              <strong style={{ color: "#7c3aed" }}>성과:</strong>{" "}
-                              <span style={{ color: "#7c3aed" }}>{proj.achievement}</span>
+                              <strong style={{ color: "#6A5ACD" }}>성과:</strong>{" "}
+                              <span style={{ color: "#6A5ACD" }}>{proj.achievement}</span>
                             </div>
                           )}
                           {proj.url && (
@@ -2866,8 +2893,8 @@ export default function App() {
                                   style={{
                                     padding: "4px 12px",
                                     borderRadius: "12px",
-                                    background: "#fee2e2",
-                                    color: "#7c3aed",
+                                    background: "#e9d5ff",
+                                    color: "#6A5ACD",
                                     fontSize: "0.75rem",
                                     fontWeight: "600",
                                   }}
@@ -2928,8 +2955,8 @@ export default function App() {
                                 style={{
                                   padding: "2px 8px",
                                   borderRadius: "8px",
-                                  background: "#fee2e2",
-                                  color: "#7c3aed",
+                                  background: "#e9d5ff",
+                                  color: "#6A5ACD",
                                   fontSize: "0.75rem",
                                   fontWeight: "600",
                                 }}
@@ -3238,6 +3265,7 @@ export default function App() {
                   const formData = new FormData();
                   formData.append('file', file);
                   
+                  setAnalyzingWritingStyle(true);
                   try {
                     // FormData는 직접 fetch 사용
                     const API_BASE = import.meta?.env?.VITE_API_BASE || (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1" ? "" : "http://localhost:8000");
@@ -3261,6 +3289,8 @@ export default function App() {
                   } catch (error) {
                     console.error('문체 업로드 오류:', error);
                     alert('❌ 업로드 실패');
+                  } finally {
+                    setAnalyzingWritingStyle(false);
                   }
                 }}
                 style={{
@@ -3273,8 +3303,47 @@ export default function App() {
                 작성자의 글(문서, 일기, 블로그 등)을 업로드하면 AI가 문체를 학습해서 자연스러운 추천서를 생성합니다
               </p>
               
+              {/* 문체 분석 중 표시 */}
+              {analyzingWritingStyle && (
+                <>
+                  <style>{`
+                    @keyframes spin {
+                      to { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                  <div style={{
+                    marginTop: "1rem",
+                    padding: "1.5rem",
+                    background: "linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%)",
+                    borderRadius: "12px",
+                    border: "2px solid #c084fc",
+                    textAlign: "center"
+                  }}>
+                    <div style={{ 
+                      display: "inline-block",
+                      width: "20px", 
+                      height: "20px", 
+                      border: "3px solid #9370DB",
+                      borderTopColor: "transparent",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite",
+                      marginRight: "12px",
+                      verticalAlign: "middle"
+                    }} />
+                    <span style={{ 
+                      fontSize: "0.95rem", 
+                      fontWeight: "600", 
+                      color: "#7c3aed",
+                      verticalAlign: "middle"
+                    }}>
+                      {t.form.analyzingWritingStyle}
+                    </span>
+                  </div>
+                </>
+              )}
+              
               {/* 문체 분석 결과 표시 */}
-              {writingStyleAnalysis && (
+              {writingStyleAnalysis && !analyzingWritingStyle && (
                 <div style={{
                   marginTop: "1rem",
                   padding: "1.5rem",
@@ -3285,7 +3354,7 @@ export default function App() {
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
                     <h4 style={{ margin: 0, fontSize: "1rem", fontWeight: "600" }}>
-                      ✅ 문체 분석 완료
+                      {t.form.writingStyleComplete}
                     </h4>
                     <button
                       onClick={() => {
@@ -3613,7 +3682,7 @@ export default function App() {
                   }}
                 >
                   <h3 style={{ fontSize: "1.25rem", fontWeight: "bold", color: "#9370DB" }}>
-                    {t.form.generatedTitle} ({form.selected_score}{language === 'ko' ? '점' : ''}{form.tone ? ` · ${t.tones[form.tone]}` : writingStyleAnalysis ? ' · 문체 반영' : ''})
+                    {t.form.generatedTitle} ({getScoreText(form.selected_score, language)}{form.tone ? ` · ${t.tones[form.tone]}` : writingStyleAnalysis ? ' · 문체 반영' : ''})
                   </h3>
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                     <button
