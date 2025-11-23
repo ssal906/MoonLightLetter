@@ -174,7 +174,7 @@ class RecommendationRequest(BaseModel):
     strengths: Optional[str] = None    # 장점
     memorable: Optional[str] = None    # 특별히 기억나는 내용
     additional_info: Optional[str] = None  # 추가 내용
-    tone: str = "Formal"             # "Formal" | "Friendly" | ...
+    tone: Optional[str] = "Formal"    # "Formal" | "Friendly" | ... (문체 분석 시 None 가능)
     selected_score: str = "5"        # "1" ~ "5"
     workspace_id: Optional[int] = None  # 더 이상 DB에 기록하지 않음(레거시 유지 파라미터)
     include_user_details: Optional[bool] = False  # 사용자 상세정보 포함 여부
@@ -182,6 +182,7 @@ class RecommendationRequest(BaseModel):
     template_id: Optional[int] = None  # 참고할 양식 ID (선택)
     signature_data: Optional[str] = None  # 서명 데이터 (base64 또는 텍스트)
     signature_type: Optional[str] = None  # 서명 타입 ("draw" | "text" | "upload")
+    use_writing_style: Optional[bool] = False  # 문체 사용 여부 (클라이언트에서 명시적으로 요청한 경우만)
 
 def build_recommendation_prompt(inputs: RecommendationRequest, score: int, recommender_email: str = "", user_details: dict = None, template_content: str = None, writing_style: dict = None) -> str:
     major_line = f"\n전공 분야: {inputs.major_field}" if inputs.major_field else ""
@@ -290,11 +291,40 @@ def build_recommendation_prompt(inputs: RecommendationRequest, score: int, recom
     style_prefix = ""
     if writing_style:
         common_phrases = writing_style.get('common_phrases', [])
+        speech_level = writing_style.get('speech_level', '존댓말')
+        subject_style = writing_style.get('subject_style', '저는 사용')
+        sentence_flow = writing_style.get('sentence_flow', '')
+        
         if common_phrases:
             # 물결표(~) 제거 - "~거든요" → "거든요"
             phrase1 = common_phrases[0].replace('~', '') if len(common_phrases) > 0 else "해요"
             phrase2 = common_phrases[1].replace('~', '') if len(common_phrases) > 1 else phrase1
             phrase3 = common_phrases[2].replace('~', '') if len(common_phrases) > 2 else phrase2
+            
+            # 문장 흐름 지시
+            flow_instruction = ""
+            sentence_endings = writing_style.get('sentence_endings', [])
+            connectors = writing_style.get('connectors', [])
+            
+            if sentence_flow or sentence_endings or connectors:
+                flow_parts = []
+                if sentence_flow:
+                    flow_parts.append(f"• 분석된 문장 흐름: {sentence_flow}")
+                if sentence_endings:
+                    endings_str = ", ".join(sentence_endings[:5])  # 최대 5개만
+                    flow_parts.append(f"• 자주 사용하는 문장 끝맺음: {endings_str}")
+                if connectors:
+                    connectors_str = ", ".join(connectors[:5])  # 최대 5개만
+                    flow_parts.append(f"• 자주 사용하는 연결어: {connectors_str}")
+                
+                flow_instruction = f"""
+【문장 흐름 패턴】
+{chr(10).join(flow_parts)}
+• 이 패턴을 따라 자연스럽고 유창한 문장을 작성하세요.
+• 예: "~이라하네도" 같은 표현은 "~하네"처럼 자연스럽게 축약하세요.
+• 문장이 어색하게 끊기지 않도록 연결어와 흐름을 고려하세요.
+• 문장 끝맺음과 연결어를 적절히 활용하여 자연스러운 문장 흐름을 만들어주세요.
+"""
             
             style_prefix = f"""
 🚨🚨🚨 최우선 규칙 - 반드시 준수 🚨🚨🚨
@@ -302,23 +332,42 @@ def build_recommendation_prompt(inputs: RecommendationRequest, score: int, recom
 이 추천서는 {inputs.recommender_name}님의 고유한 말투로 작성됩니다.
 일반적인 "~합니다", "~입니다" 표현은 절대 사용하지 마세요!
 
-【반드시 사용해야 할 끝맺음 표현】
-• {phrase1}
-• {phrase2}
-• {phrase3}
+【문체 분석 결과】
+• 말투 수준: {speech_level}
+• 주어 표현 스타일: {subject_style}
+• 자주 사용하는 끝맺음: {phrase1}, {phrase2}, {phrase3}
+{sentence_flow if sentence_flow else ""}
+
+【AI 판단 필요 사항】
+다음 문체 분석 결과를 바탕으로 **자동으로 판단**하여 작성하세요:
+
+1. **반말/존댓말 결정**
+   - 말투 수준({speech_level})과 끝맺음 표현({phrase1}, {phrase2}, {phrase3})을 분석하여
+   - 반말인지 존댓말인지 자동으로 판단하고 일관되게 적용하세요
+   - 예: "~하네", "~하더라고요" 같은 표현은 반말/하게체일 가능성이 높습니다
+   - 예: "~합니다", "~입니다" 같은 표현은 존댓말입니다
+
+2. **주어 표현 결정**
+   - 주어 표현 스타일({subject_style})과 말투 수준({speech_level})을 분석하여
+   - "저는", "나는", 또는 주어 생략 중 어떤 것이 자연스러운지 판단하세요
+   - 반말/하게체일 경우 "나는"이 더 자연스럽고, 존댓말일 경우 "저는"이 적절합니다
+   - 주어 생략 스타일이면 주어를 생략하세요
+
+3. **문장 흐름**
+{flow_instruction if flow_instruction else "• 문체 분석 결과의 문장 흐름 패턴을 따라 자연스럽게 작성하세요."}
 
 【예시 - 이렇게 작성하세요】
-❌ 틀림: "김나비님은 뛰어난 인재입니다"
-✅ 정답: "김나비님은 뛰어난 인재{phrase1}"
+❌ 틀림: "저는 김나비님은 뛰어난 인재입니다"
+✅ 정답: (문체에 맞게 자동 판단) "나는 김나비님은 뛰어난 인재{phrase1}" 또는 "김나비님은 뛰어난 인재{phrase1}" (주어 생략)
 
-❌ 틀림: "프로젝트를 성공적으로 완수했습니다"
-✅ 정답: "프로젝트를 성공적으로 완수했{phrase2}"
+❌ 틀림: "저는 프로젝트를 성공적으로 완수했습니다"
+✅ 정답: (문체에 맞게 자동 판단) "나는 프로젝트를 성공적으로 완수했{phrase2}" 또는 "프로젝트를 성공적으로 완수했{phrase2}"
 
-❌ 틀림: "탁월한 성과를 보여주었습니다"
-✅ 정답: "탁월한 성과를 보여주었{phrase3}"
-
-⚠️ 중요: 본문의 모든 문장 끝은 위의 3가지 표현 중 하나로만 끝나야 합니다!
-⚠️ "~합니다", "~입니다", "~했습니다" 같은 일반 격식체는 절대 사용 금지!
+⚠️ 중요: 
+• 본문의 모든 문장 끝은 위의 3가지 표현 중 하나로만 끝나야 합니다!
+• 주어 표현은 문체 분석 결과를 바탕으로 **자동으로 판단**하여 자연스럽게 사용하세요!
+• "~합니다", "~입니다", "~했습니다" 같은 일반 격식체는 절대 사용 금지!
+• 문장 흐름을 자연스럽게 유지하세요!
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -392,7 +441,7 @@ def build_recommendation_prompt(inputs: RecommendationRequest, score: int, recom
 
 [입력]
 - 점수: {score}점
-- 추천서 톤: {inputs.tone}
+{f"- 추천서 톤: {inputs.tone}" if inputs.tone else "- 추천서 톤: 문체 분석 결과 반영 (톤 선택 없음)"}
   * 톤 종류 및 상세 특징:
     
     [공식적 톤]
@@ -435,9 +484,9 @@ def build_recommendation_prompt(inputs: RecommendationRequest, score: int, recom
     - 표현 방식: 구체적 사례와 수치 강조, 논리적 근거 제시, 적극적 추천 어조
     - 예시: "저는 {inputs.requester_name}을 강력히 추천합니다. 특히 업무 수행 과정에서 보여준 역량은 입증된 사실입니다."
   
-  * 선택된 톤({inputs.tone})에 맞는 위 특징을 엄격히 준수하여 일관된 문체와 어휘를 사용하세요.
+  {f"* 선택된 톤({inputs.tone})에 맞는 위 특징을 엄격히 준수하여 일관된 문체와 어휘를 사용하세요." if inputs.tone else "* 문체 분석 결과가 제공되었으므로, 위 톤 가이드는 참고용이며 실제로는 업로드된 문체 분석 결과를 우선적으로 따르세요."}
   * 예시 형식은 참고만 하고 똑같이 사용하지 마세요.
-  * 톤별 어휘와 표현 방식을 혼용하지 말고, 선택한 톤의 특징만 사용하세요.
+  {f"* 톤별 어휘와 표현 방식을 혼용하지 말고, 선택한 톤의 특징만 사용하세요." if inputs.tone else "* 문체 분석 결과에 따라 자연스러운 문체로 작성하세요."}
 
 - 작성자: {inputs.recommender_name}
 - 요청자: {inputs.requester_name} / {inputs.requester_email}
@@ -462,11 +511,11 @@ def build_recommendation_prompt(inputs: RecommendationRequest, score: int, recom
 [작성 예시 형식]
 추천서
 
-저는 [관계]로서 {inputs.requester_name}님을 [기간]동안 함께 일하며 지켜본 {inputs.recommender_name}{'입니다' if not writing_style else (writing_style.get('common_phrases', ['입니다'])[0] if writing_style and writing_style.get('common_phrases') else '입니다')}...
+[문체 분석 결과에 따라 주어 표현을 자동으로 판단하여 사용하세요: "저는", "나는", 또는 주어 생략] [관계]로서 {inputs.requester_name}님을 [기간]동안 함께 일하며 지켜본 {inputs.recommender_name}{'입니다' if not writing_style else (writing_style.get('common_phrases', ['입니다'])[0].replace('~', '') if writing_style and writing_style.get('common_phrases') else '입니다')}...
 
 [본문 문단들...]{' 🔴 모든 문장이 지정된 끝맺음으로 끝나야 함!' if writing_style else ''}
 
-위와 같은 이유로 {inputs.requester_name}님을 적극 추천{'합니다' if not writing_style else (writing_style.get('common_phrases', ['합니다'])[1] if writing_style and len(writing_style.get('common_phrases', [])) > 1 else writing_style.get('common_phrases', ['합니다'])[0] if writing_style and writing_style.get('common_phrases') else '합니다')}... (점수에 따라 추천 강도 조절)
+위와 같은 이유로 {inputs.requester_name}님을 적극 추천{('합니다' if not writing_style else (writing_style.get('common_phrases', ['합니다'])[1].replace('~', '') if writing_style and len(writing_style.get('common_phrases', [])) > 1 else writing_style.get('common_phrases', ['합니다'])[0].replace('~', '') if writing_style and writing_style.get('common_phrases') else '합니다'))}... (점수에 따라 추천 강도 조절)
 
 
 {current_date}
@@ -653,7 +702,7 @@ def analyze_writing_style_with_ai(text: str) -> dict:
     
     prompt = f"""
 다음 텍스트를 분석하여 작성자의 문체 특징을 파악해주세요.
-특히 **문장 끝맺음 표현**에 집중해주세요.
+특히 **문장 끝맺음 표현**, **주어 표현**, **문장 흐름 패턴**에 집중해주세요.
 
 텍스트:
 \"\"\"
@@ -665,12 +714,18 @@ def analyze_writing_style_with_ai(text: str) -> dict:
   "tone": "어조 (예: 친근한, 격식있는, 권위적인, 캐주얼한 등)",
   "sentence_length": "문장 길이 (짧음/보통/김)",
   "vocabulary_level": "어휘 수준 (일상적/학술적/전문적)",
+  "speech_level": "말투 수준 (반말/존댓말/하게체/해라체 등)",
+  "subject_style": "주어 표현 스타일 (예: '저는' 사용/ '나는' 사용/ 주어 생략 등)",
+  "sentence_flow": "문장 흐름 패턴 (예: '~이라하네도' → '~하네' 같은 자연스러운 축약, 연결어 사용 패턴 등)",
   "common_phrases": ["자주 사용하는 끝맺음 표현 3-5개 (예: ~하더라고요, ~네요, ~합니다 등)"],
   "characteristics": ["기타 특징 2-3개"]
 }}
 
-**중요**: common_phrases는 실제로 텍스트에서 발견된 구체적인 끝맺음 표현을 포함해야 합니다.
-예: "~하더라고요", "~네요", "~거든요", "~했어요", "~ㅂ니다" 등
+**중요**: 
+- common_phrases는 실제로 텍스트에서 발견된 구체적인 끝맺음 표현을 포함해야 합니다.
+- speech_level은 반말/존댓말을 명확히 구분해주세요 (예: "반말", "존댓말", "하게체", "해라체" 등)
+- subject_style은 주어 표현 방식을 분석해주세요 (예: "저는 사용", "나는 사용", "주어 생략" 등)
+- sentence_flow는 문장이 자연스럽게 이어지는 패턴을 분석해주세요 (예: "축약형 사용", "연결어 자주 사용", "간결한 표현" 등)
 """
     
     try:
@@ -792,8 +847,8 @@ async def upload_writing_sample(
     
     # 2) 텍스트 추출
     try:
-        text = await extract_text_from_file(file)
-        if not text or len(text.strip()) < 100:
+        extracted_text = await extract_text_from_file(file)
+        if not extracted_text or len(extracted_text.strip()) < 100:
             raise HTTPException(
                 status_code=400, 
                 detail="텍스트가 너무 짧습니다. 최소 100자 이상의 글을 업로드해주세요."
@@ -803,7 +858,7 @@ async def upload_writing_sample(
     
     # 3) AI 문체 분석
     try:
-        style_analysis = analyze_writing_style_with_ai(text)
+        style_analysis = analyze_writing_style_with_ai(extracted_text)
     except ValueError as e:
         raise HTTPException(status_code=500, detail=str(e))
     
@@ -818,7 +873,7 @@ async def upload_writing_sample(
             """)
             existing = conn.execute(check_sql, {"user_id": user_id}).first()
             
-            sample_text = text[:1000]  # 처음 1000자만 저장
+            sample_text = extracted_text[:1000]  # 처음 1000자만 저장
             style_json = json.dumps(style_analysis, ensure_ascii=False)
             
             if existing:
@@ -1376,21 +1431,24 @@ async def generate(request: RecommendationRequest):
         except Exception as e:
             print(f"양식 조회 오류 (계속 진행): {e}")
     
-    # 2-1) 작성자의 문체 정보 조회 (있는 경우)
+    # 2-1) 작성자의 문체 정보 조회 (클라이언트에서 명시적으로 요청한 경우만)
     writing_style = None
-    try:
-        with engine.connect() as conn:
-            style_sql = text("""
-                SELECT styleAnalysis FROM writing_styles
-                WHERE userId = :user_id
-                LIMIT 1
-            """)
-            style_row = conn.execute(style_sql, {"user_id": from_user.id}).first()
-            if style_row and style_row._mapping.get("styleAnalysis"):
-                writing_style = json.loads(style_row._mapping.get("styleAnalysis"))
-                print(f"문체 정보 로드 완료 (사용자 ID: {from_user.id})")
-    except Exception as e:
-        print(f"문체 정보 조회 오류 (계속 진행): {e}")
+    if request.use_writing_style:
+        try:
+            with engine.connect() as conn:
+                style_sql = text("""
+                    SELECT styleAnalysis FROM writing_styles
+                    WHERE userId = :user_id
+                    LIMIT 1
+                """)
+                style_row = conn.execute(style_sql, {"user_id": from_user.id}).first()
+                if style_row and style_row._mapping.get("styleAnalysis"):
+                    writing_style = json.loads(style_row._mapping.get("styleAnalysis"))
+                    print(f"문체 정보 로드 완료 (사용자 ID: {from_user.id})")
+        except Exception as e:
+            print(f"문체 정보 조회 오류 (계속 진행): {e}")
+    else:
+        print(f"문체 사용 안 함 (클라이언트 요청: use_writing_style={request.use_writing_style})")
     
     # 3) 추천서 텍스트 생성
     try:
