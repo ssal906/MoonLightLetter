@@ -1040,8 +1040,23 @@ async def transcribe_audio(audio_file: UploadFile) -> str:
         return transcript.text
     
     except Exception as e:
-        print(f"음성 변환 오류: {e}")
-        raise HTTPException(status_code=500, detail=f"음성 변환 실패: {str(e)}")
+        error_str = str(e)
+        print(f"음성 변환 오류: {error_str}")
+        
+        # OpenAI API 키 오류 처리
+        if "invalid_api_key" in error_str or "401" in error_str or "Incorrect API key" in error_str:
+            raise HTTPException(
+                status_code=503, 
+                detail="OpenAI API 키가 유효하지 않습니다. Railway 환경 변수에서 OPENAI_API_KEY를 확인해주세요."
+            )
+        # 기타 OpenAI API 오류
+        elif "openai" in error_str.lower() or "api" in error_str.lower():
+            raise HTTPException(
+                status_code=503,
+                detail=f"OpenAI API 오류가 발생했습니다: {error_str}"
+            )
+        else:
+            raise HTTPException(status_code=500, detail=f"음성 변환 실패: {error_str}")
 
 
 def parse_voice_to_fields(transcribed_text: str) -> dict:
@@ -1249,41 +1264,42 @@ async def generate(request: RecommendationRequest):
         with engine.connect() as conn:
             # 1) 요청에 새 서명이 포함되어 있으면 DB에 저장
             if request.signature_data and request.signature_type:
-                # 기존 서명이 있는지 확인
-                existing_sig_sql = text("""
-                    SELECT id FROM userSignatures
-                    WHERE userId = :user_id AND deletedAt IS NULL
-                    LIMIT 1
-                """)
-                existing_sig = conn.execute(existing_sig_sql, {"user_id": from_user.id}).first()
-                
-                if existing_sig:
-                    # 기존 서명 업데이트
-                    update_sig_sql = text("""
-                        UPDATE userSignatures
-                        SET signatureData = :data, signatureType = :type, updatedAt = NOW()
-                        WHERE id = :sig_id
+                # 별도 트랜잭션으로 서명 저장
+                with engine.begin() as sig_conn:
+                    # 기존 서명이 있는지 확인
+                    existing_sig_sql = text("""
+                        SELECT id FROM userSignatures
+                        WHERE userId = :user_id AND deletedAt IS NULL
+                        LIMIT 1
                     """)
-                    conn.execute(update_sig_sql, {
-                        "data": request.signature_data,
-                        "type": request.signature_type,
-                        "sig_id": existing_sig.id
-                    })
-                    print(f"기존 서명 업데이트 완료 (타입: {request.signature_type})")
-                else:
-                    # 새 서명 생성
-                    insert_sig_sql = text("""
-                        INSERT INTO userSignatures (userId, signatureData, signatureType, createdAt, updatedAt)
-                        VALUES (:user_id, :data, :type, NOW(), NOW())
-                    """)
-                    conn.execute(insert_sig_sql, {
-                        "user_id": from_user.id,
-                        "data": request.signature_data,
-                        "type": request.signature_type
-                    })
-                    print(f"새 서명 저장 완료 (타입: {request.signature_type})")
-                
-                conn.commit()
+                    existing_sig = sig_conn.execute(existing_sig_sql, {"user_id": from_user.id}).first()
+                    
+                    if existing_sig:
+                        # 기존 서명 업데이트
+                        update_sig_sql = text("""
+                            UPDATE userSignatures
+                            SET signatureData = :data, signatureType = :type, updatedAt = NOW()
+                            WHERE id = :sig_id
+                        """)
+                        sig_conn.execute(update_sig_sql, {
+                            "data": request.signature_data,
+                            "type": request.signature_type,
+                            "sig_id": existing_sig.id
+                        })
+                        print(f"기존 서명 업데이트 완료 (타입: {request.signature_type})")
+                    else:
+                        # 새 서명 생성
+                        insert_sig_sql = text("""
+                            INSERT INTO userSignatures (userId, signatureData, signatureType, createdAt, updatedAt)
+                            VALUES (:user_id, :data, :type, NOW(), NOW())
+                        """)
+                        sig_conn.execute(insert_sig_sql, {
+                            "user_id": from_user.id,
+                            "data": request.signature_data,
+                            "type": request.signature_type
+                        })
+                        print(f"새 서명 저장 완료 (타입: {request.signature_type})")
+                    # engine.begin()을 사용하면 자동으로 커밋됨
                 
                 recommender_signature = {
                     "data": request.signature_data,
@@ -3944,7 +3960,7 @@ async def create_or_update_signature(signature: SignatureCreate, current_user: d
     try:
         user_id = current_user.get("id")
         
-        with engine.connect() as conn:
+        with engine.begin() as conn:
             # 기존 서명이 있는지 확인
             check_sql = text("""
                 SELECT id FROM userSignatures
@@ -3968,6 +3984,7 @@ async def create_or_update_signature(signature: SignatureCreate, current_user: d
                     "signature_type": signature.signature_type
                 })
                 message = "서명이 수정되었습니다."
+                print(f"서명 업데이트 완료 (사용자 ID: {user_id})")
             else:
                 # 새로 생성
                 insert_sql = text("""
@@ -3980,8 +3997,9 @@ async def create_or_update_signature(signature: SignatureCreate, current_user: d
                     "signature_type": signature.signature_type
                 })
                 message = "서명이 등록되었습니다."
+                print(f"서명 생성 완료 (사용자 ID: {user_id}, 타입: {signature.signature_type})")
             
-            conn.commit()
+            # engine.begin()을 사용하면 자동으로 커밋됨
             
             return {
                 "success": True,
