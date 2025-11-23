@@ -3605,14 +3605,25 @@ export default function App() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         const canvas = window.signatureCanvas;
                         if (canvas) {
                           const dataUrl = canvas.toDataURL('image/png');
                           setSignatureData(dataUrl);
                           setSignatureType('draw');
                           setShowSignaturePad(false);
-                          alert('서명이 저장되었습니다! 추천서 생성 시 자동으로 포함됩니다.');
+                          
+                          // 서버에 서명 저장
+                          try {
+                            await apiPost('/user-signature', {
+                              signature_data: dataUrl,
+                              signature_type: 'draw'
+                            });
+                            alert('서명이 저장되었습니다! 추천서 생성 시 자동으로 포함됩니다.');
+                          } catch (error) {
+                            console.error('서명 저장 실패:', error);
+                            alert('서명 저장에 실패했습니다. 다시 시도해주세요.');
+                          }
                         }
                       }}
                       style={{
