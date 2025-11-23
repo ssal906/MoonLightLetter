@@ -33,7 +33,17 @@ export const getAuthHeader = () => {
 // 기본 fetch 래퍼
 export const apiFetch = async (endpoint, options = {}) => {
   try {
-    const url = endpoint.startsWith("http") ? endpoint : `${API_BASE}${endpoint}`;
+    let url;
+    if (endpoint.startsWith("http")) {
+      url = endpoint;
+    } else {
+      // API_BASE와 endpoint를 결합할 때 슬래시 중복 제거
+      const base = API_BASE || '';
+      const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      url = base + path;
+      // 중복 슬래시 제거 (단, http:// 같은 프로토콜 부분은 보존)
+      url = url.replace(/([^:]\/)\/+/g, '$1');
+    }
     const headers = {
       "Content-Type": "application/json",
       ...getAuthHeader(),
@@ -100,6 +110,23 @@ export const apiPatch = (endpoint, body, options = {}) =>
 
 export const apiDelete = (endpoint, options = {}) =>
   apiFetch(endpoint, { ...options, method: "DELETE" });
+
+// URL 생성 헬퍼 함수 (슬래시 중복 제거)
+export const buildApiUrl = (endpoint) => {
+  if (endpoint.startsWith("http")) {
+    return endpoint;
+  }
+  
+  const base = getApiBase() || '';
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  let url = base + path;
+  
+  // 중복 슬래시 제거 (프로토콜 부분은 보존)
+  // 예: "//path" -> "/path", "http://host//path" -> "http://host/path"
+  url = url.replace(/([^:]\/)\/+/g, '$1');
+  
+  return url;
+};
 
 export default API_BASE;
 
