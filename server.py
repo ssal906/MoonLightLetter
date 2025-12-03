@@ -4204,6 +4204,8 @@ async def evaluate_recommendation(request: EvaluationRequest):
         
         return {
             "scores": scores,
+            "average_score": result['average_score'],
+            "percentage": result['percentage'],
             "improvements": improvements
         }
         
